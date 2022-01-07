@@ -1,0 +1,151 @@
+---
+title: ""
+author: "Fernando Barbeito"
+date: "26/12/2021"
+output: html_document
+---
+
+
+<style>
+body {
+text-align: justify}
+H1{
+  color:#6A5ACD;
+  font-weight: bold;
+}
+H3{
+  color:#6A5ACD;
+}
+
+</style>
+
+
+<H1> Análisis del Mercado de alquileres de Uruguay </H1>
+
+<H3> Introducción </H3>
+
+El siguiente reporte tiene como objetivo explicar el proceso de análsis del mercado de alquileres y las conclusiones obtenidas.
+La fuente utilizada para realizar el análisis fueron los datos extraídos, mediante técnicas de webscrapping, del sitio web de Mercado Libre, desde hasta el 26 de diciembre de 2021. El informe y los análisis pueden ser actualizados, ya que el script que toma los datos se ejecuta diariamente.
+Las preguntas que permite responder el análisis son las siguientes:
+
+<ul>
+  <li> ¿Cómo ha evolucionado el precio de los alquileres en estos últimos meses? </li>
+  <li> ¿Cómo se distribuyen los precios de acuerdo a las diferentes zonas? </li>
+  <li> ¿Hay diferencias significativas entre el precio de alquiler de una casa y de un apartamento? </li>
+  <li> ¿Cuál es la relación entre los metros cuadrados del inmueble y el precio del alquiler?
+  <li> ¿Qué factores explican mayormente el precio del alquiler? </li>
+</ul>
+
+Además de este set de preguntas, es posible extraer un conjunto de respuestas más específicas, dados los modelos predictivos que se ha desarrollado. Por ejemplo:
+
+<ul> 
+  <li> Si quiero alquilar un apartamento en el centro, que posee dos dormitorios y 60 metros cuadrados, ¿cuánto debería cobrar para que el precio sea competitivo? </li>
+</ul>  
+
+<H3> Scrapping, limpieza de datos y visualizaciones </H3>
+
+Las tareas de la recolección de la información, limpieza de datos, visualización y modelado se encuentran en scripts separados.
+Para acceder a ellos, basta con seguir los siguientes links:
+
+<ul> 
+  <li> [Script de webscrapping](https://github.com/fbarbeito/ML-Alquileres/tree/main/Scrapping)
+</li>
+  <li> [Script de limpieza](https://github.com/fbarbeito/ML-Alquileres/tree/main/Limpieza)
+  </li>
+  <li> [Script de visualizaciones](https://github.com/fbarbeito/ML-Alquileres/tree/main/Visualizaciones)
+  </li>
+  <li> [Script de modelos](https://github.com/fbarbeito/ML-Alquileres/tree/main/Modelos)
+  </li>
+</ul>  
+
+<H3> Análisis </H3>
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+rm(list = ls())
+library(plotly)
+library(tidyverse)
+library(moments)
+
+data_clean <- read_csv("../data_clean.csv")
+data_precio <- data_clean %>% group_by(Fecha) %>% summarise(Precio_Medio = mean(Precio),Precio_Mediano = median(Precio))
+
+```
+
+En los gráficos siguientes, se puede observar la evolución general del precio medio y mediano, la composición de las ofertas por tipo de inmueble y la evolución del precio medio por los tipos de inmuebles más relevantes.
+
+## {.tabset .tabset-pills .notitle}
+
+### Precio medio General
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+fig <- plot_ly(data_precio, x = ~Fecha, y = ~Precio_Mediano, name = 'Mediana', type = 'scatter', mode = 'lines+markers',hovertemplate = paste("Alquiler: %{y:$,.0f}<br>"," %{x}")) 
+
+fig <- fig %>% add_trace(y = ~Precio_Medio, name = 'Media', mode = 'lines+markers',hovertemplate = paste("Alquiler: %{y:$,.0f}<br>"," %{x}")) 
+
+fig <- fig %>% layout(title = "Precio de los alquileres",legend = list(orientation = 'h',xanchor="center", x = 0.5),xaxis=list(title=""),yaxis=list(title="",tickformat = "$,.0f"))
+fig
+```
+### Ofertas por Inmueble
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+data_inmueble_oferta <- data_clean %>% group_by(TipoInmueble) %>% summarise(Ofertas = n())
+
+
+fig <- plot_ly(data_inmueble_oferta,labels = ~TipoInmueble,values=~Ofertas,type='pie') 
+
+
+fig <- fig %>% layout(title = "Ofertas por tipo de inmueble",legend = list(orientation = 'h',xanchor="center", x = 0.5),xaxis=list(title=""),yaxis=list(title="Pesos"))
+fig
+```
+
+
+### Precio medio por Inmueble
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+data_inmueble <- data_clean %>% group_by(Fecha,TipoInmueble) %>% summarise(Precio_medio = mean(Precio))
+data_inmueble <- data_inmueble %>% filter(TipoInmueble %in% c("APARTAMENTO","CASA"))
+
+inmueble <- unique(data_inmueble$TipoInmueble)
+x <- data_inmueble %>% filter(TipoInmueble %in% inmueble[1]) %>% .$Precio_medio
+
+fig <- plot_ly( x = unique(data_inmueble$Fecha), y = x,name = inmueble[1], type = 'scatter', mode = 'lines+markers',hovertemplate = paste("Alquiler: %{y:$,.0f}<br>"," %{x}")) 
+for(i in 2:length(inmueble)){
+  x <- data_inmueble %>% filter(TipoInmueble %in% inmueble[i]) %>% .$Precio_medio
+  fig <- fig %>% add_trace(y = x, name = inmueble[i], mode = 'lines+markers',hovertemplate = paste("Alquiler: %{y:$,.0f}<br>"," %{x}")) 
+
+}
+
+fig <- fig %>% layout(title = "Precio de los alquileres por tipo de inmueble",legend = list(orientation = 'h',xanchor="center", x = 0.5),xaxis=list(title=""),yaxis=list(title="",tickformat = "$,.0f"))
+
+fig
+```
+
+De estos gráficos se pueden extraer las siguientes conclusiones:
+
+<ol>
+  <li> Se puede observar que el precio mediano es más estable y está por debajo del precio medio. </li>
+  <li> Las casas son el inmueble con mayor cantidad de ofertas con un porcentaje de 73.7%. Las casas le siguen en importancia. </li>
+  <li> El alquiler de los apartamentos, en general y considerando los precios medios, se encuentran por debajo y son más estables que el de las casas </li>
+</ol>
+
+Para fortalecer la conclusión del tercer punto, se pueden hacer gráficos de cajas y algunos test estadísticos. Se quita un outlier para el caso de los apartamentos, ya que distorsiona la visualización de los gráficos de caja.
+
+## {.tabset .tabset-pills .notitle}
+
+### Boxplot
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+fig <- data_clean %>% filter(TipoInmueble %in% c("APARTAMENTO","CASA"),Precio <200000) %>% plot_ly( y = ~Precio,color=~TipoInmueble,type='box')
+
+fig <- fig %>% layout(title = "Precio de los alquileres por tipo de inmueble",legend = list(orientation = 'h',xanchor="center", x = 0.5),xaxis=list(title=""),yaxis=list(title="",tickformat = "$,.0f"))
+
+fig
+```
+
+### Test estadísticos
+
